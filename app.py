@@ -31,14 +31,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-if 'job_postings' not in st.session_state:
-    st.session_state['job_postings'] = [
+# ==========================================
+# ⭐️ 핵심 변경: 모든 접속자가 공유하는 '공용 메모장 (서버 DB 역할)'
+# ==========================================
+@st.cache_resource
+def get_shared_jobs():
+    return [
         {"id": 1, "village": "춘천시 신북읍", "job_type": "감자 수확", "work_date": date.today() + timedelta(days=2), "wage": "100,000", "req_people": 4, "current_apply": 2, "photo_b64": None, "temp": "38.5°C", "weather": "☀️ 맑음 (최고 22도)"},
         {"id": 2, "village": "홍천군 서면", "job_type": "옥수수 수확", "work_date": date.today() + timedelta(days=3), "wage": "90,000", "req_people": 2, "current_apply": 2, "photo_b64": None, "temp": "36.5°C", "weather": "☁️ 흐림 (최고 18도)"},
         {"id": 3, "village": "춘천시 동면", "job_type": "비료 운반", "work_date": date.today() + timedelta(days=4), "wage": "120,000", "req_people": 3, "current_apply": 1, "photo_b64": None, "temp": "40.2°C", "weather": "⛅ 구름 조금 (최고 20도)"},
         {"id": 4, "village": "화천군 하남면", "job_type": "잡초 제거", "work_date": date.today() + timedelta(days=5), "wage": "85,000", "req_people": 5, "current_apply": 0, "photo_b64": None, "temp": "37.0°C", "weather": "☀️ 맑음 (최고 25도)"},
         {"id": 5, "village": "양구군 남면", "job_type": "김장 배추", "work_date": date.today() + timedelta(days=6), "wage": "110,000", "req_people": 6, "current_apply": 2, "photo_b64": None, "temp": "39.1°C", "weather": "☀️ 맑음 (최고 15도)"},
     ]
+
+# 모든 유저가 이 SHARED_JOBS 리스트를 똑같이 바라보고 수정하게 됩니다.
+SHARED_JOBS = get_shared_jobs()
 
 if 'page' not in st.session_state: st.session_state['page'] = 'home'
 if 'selected_job_id' not in st.session_state: st.session_state['selected_job_id'] = None
@@ -102,7 +109,6 @@ elif st.session_state['page'] == 'student_login':
     
     with st.form("student_login_form"):
         st.write("안전한 매칭을 위해 대학교 학생 인증을 진행합니다.")
-        # ⭐️ 하드코딩된 이름 제거 후 예시(Placeholder)로 변경
         st.text_input("이름", placeholder="예: 홍길동") 
         st.text_input("학교명", placeholder="예: 강원대학교")
         st.text_input("학번", placeholder="예: 202600000")
@@ -117,14 +123,13 @@ elif st.session_state['page'] == 'student_login':
         st.rerun()
 
 # ==========================================
-# 4. 마을 주민 화면 (⭐️ 폼 제거로 기타입력 즉시반응 처리)
+# 4. 마을 주민 화면
 # ==========================================
 elif st.session_state['page'] == 'resident':
     st.markdown("<style>div.stButton > button { font-family: 'Jua', sans-serif; border-radius: 12px; font-size: 18px; }</style>", unsafe_allow_html=True)
     st.markdown("<p style='font-family: \"Jua\", sans-serif; font-size: 20px; color: #2e7d32; margin-bottom: -15px;'>po-work</p>", unsafe_allow_html=True)
     st.markdown("<h1 style='font-family: \"Jua\", sans-serif; margin-top: 0;'>마을 주민 홈 🏡</h1>", unsafe_allow_html=True)
     
-    # ⭐️ st.form을 벗어나 실시간으로 '기타' 선택을 감지하도록 수정
     st.write("📝 **일손 요청서 작성**")
     name_contact = st.text_input("접수 마을회관 / 연락처")
     work_date = st.date_input("날짜")
@@ -143,17 +148,17 @@ elif st.session_state['page'] == 'resident':
     
     col_blank, col_submit = st.columns([2.5, 1.2])
     with col_submit:
-        # 일반 st.button으로 변경
         if st.button("완 료", use_container_width=True):
             photo_b64_str = base64.b64encode(uploaded_photo.getvalue()).decode("utf-8") if uploaded_photo else None
             new_job = {
-                "id": len(st.session_state['job_postings']) + 1,
+                "id": len(SHARED_JOBS) + 1,
                 "village": location, "job_type": job_desc, "work_date": work_date,
                 "wage": wage, "req_people": req_people, "current_apply": 0,
                 "photo_b64": photo_b64_str,
                 "temp": "36.5°C", "weather": "날씨 정보 대기중" 
             }
-            st.session_state['job_postings'].append(new_job)
+            # 공용 게시판(SHARED_JOBS)에 새 알바 정보를 추가!
+            SHARED_JOBS.append(new_job)
             navigate_to('resident_success')
             st.rerun()
 
@@ -194,7 +199,7 @@ elif st.session_state['page'] == 'student_list':
             
     st.markdown(f"<div class='banner-text'>{st.session_state['banner_msg']}</div>", unsafe_allow_html=True)
     
-    unique_job_types = list(set([job['job_type'] for job in st.session_state['job_postings']]))
+    unique_job_types = list(set([job['job_type'] for job in SHARED_JOBS]))
     filter_options = ["전체보기"] + sorted(unique_job_types)
     selected_filter = st.selectbox("🔍 어떤 종류의 알바를 찾으시나요?", filter_options, index=filter_options.index(st.session_state['filter_type']) if st.session_state['filter_type'] in filter_options else 0)
     
@@ -203,7 +208,7 @@ elif st.session_state['page'] == 'student_list':
         st.session_state['current_page'] = 1
         st.rerun()
         
-    filtered_jobs = st.session_state['job_postings'] if st.session_state['filter_type'] == "전체보기" else [j for j in st.session_state['job_postings'] if j['job_type'] == st.session_state['filter_type']]
+    filtered_jobs = SHARED_JOBS if st.session_state['filter_type'] == "전체보기" else [j for j in SHARED_JOBS if j['job_type'] == st.session_state['filter_type']]
     
     items_per_page = 3
     reversed_jobs = list(reversed(filtered_jobs)) 
@@ -263,7 +268,7 @@ elif st.session_state['page'] == 'student_list':
 # 6. 대학생 화면 - 상세페이지
 # ==========================================
 elif st.session_state['page'] == 'student_detail':
-    job = next((j for j in st.session_state['job_postings'] if j['id'] == st.session_state['selected_job_id']), None)
+    job = next((j for j in SHARED_JOBS if j['id'] == st.session_state['selected_job_id']), None)
     
     st.markdown("<p style='font-family: \"Jua\", sans-serif; font-size: 20px; color: #2e7d32; margin-bottom: -15px;'>po-work</p>", unsafe_allow_html=True)
     st.markdown("<h1 style='font-family: \"Jua\", sans-serif; margin-top: 0;'>대 학 생 🎓</h1>", unsafe_allow_html=True)
@@ -307,7 +312,7 @@ elif st.session_state['page'] == 'student_detail':
 # 7. 대학생 화면 - 신청 정보 입력 폼
 # ==========================================
 elif st.session_state['page'] == 'student_apply_form':
-    job = next((j for j in st.session_state['job_postings'] if j['id'] == st.session_state['selected_job_id']), None)
+    job = next((j for j in SHARED_JOBS if j['id'] == st.session_state['selected_job_id']), None)
     
     st.markdown("<style>div.stButton > button { font-family: 'Jua', sans-serif; border-radius: 12px; font-size: 18px; }</style>", unsafe_allow_html=True)
     st.markdown("<p style='font-family: \"Jua\", sans-serif; font-size: 20px; color: #2e7d32; margin-bottom: -15px;'>po-work</p>", unsafe_allow_html=True)
@@ -333,6 +338,7 @@ elif st.session_state['page'] == 'student_apply_form':
                 if "1명" in companion: apply_count = 2
                 elif "2명" in companion: apply_count = 3
                 
+                # 공용 게시판(SHARED_JOBS)에 신청 인원 반영!
                 job['current_apply'] += apply_count
                 st.session_state['last_apply_count'] = apply_count
                 navigate_to('student_success')
@@ -348,7 +354,7 @@ elif st.session_state['page'] == 'student_apply_form':
 # 8. 대학생 화면 - 신청 완료 (탑승권)
 # ==========================================
 elif st.session_state['page'] == 'student_success':
-    job = next((j for j in st.session_state['job_postings'] if j['id'] == st.session_state['selected_job_id']), None)
+    job = next((j for j in SHARED_JOBS if j['id'] == st.session_state['selected_job_id']), None)
     apply_count = st.session_state.get('last_apply_count', 1)
     
     st.markdown("<style>div.stButton > button { font-family: 'Jua', sans-serif; border-radius: 12px; font-size: 20px; height: 60px; background-color: #ffffff; }</style>", unsafe_allow_html=True)
